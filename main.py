@@ -69,20 +69,25 @@ def train_model(resume=True):
     dataset = GoogleLocalDataset(device)
     dataloader = DataLoader(dataset, batch_size=256)
     model = EmbeddingNet(dataset.vocab_size).to(device)
-    last_epoch = 0
-    # resume from last checkpoint
-    if resume:
-        path = 'checkpoints'
-        list_models = os.listdir(os.path.join(path))
-        path += '/' + list_models[-1]
-        last_epoch = int(path.split('_')[1])
-        model.load_state_dict(torch.load(path))
     loss_function = NLLLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
-    epochs = range(last_epoch+1, last_epoch+10)               # train 10 epochs at a time
-
-    # TRAINING
+    epoch = 0
     loss, losses = 0, []
+    # resume from last checkpoint
+    if resume:
+        path = 'checkpoints/'
+        list_models = os.listdir(os.path.join(path[:-1]))
+        if len(list_models):
+            path += list_models[-1]
+            epoch = int(path.split('_')[1])
+            checkpoint = torch.load(path)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            epoch = checkpoint['epoch']
+
+    model.train()
+    epochs = range(epoch+1, epoch+3)               # train 10 epochs at a time
+    # TRAINING
     for epoch in epochs:
         total_loss = 0
         for context, target in tqdm(dataloader):
@@ -92,14 +97,16 @@ def train_model(resume=True):
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
-        # save network
-        torch.save(
-            model.state_dict(),
-            f'./checkpoints/net_{epoch}_{round(time())}.pth'
-        )
-        print(f"\nend epoch: {epoch}\tcurrent loss: {loss}")
         losses.append(total_loss)
-    print(losses)  # The loss should decrease every iteration over the training data!
+        # save network
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'total_loss': total_loss,
+        }, f'./checkpoints/net_{epoch}_{round(time())}.pth')
+        print(f"\nend epoch: {epoch}\tcurrent loss: {total_loss}")
+    print(losses)  # The loss should decrease every iteration over the training data
 
 
 if __name__ == '__main__':
