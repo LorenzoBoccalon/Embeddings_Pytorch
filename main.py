@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 import torch
 from torch.nn import Linear, Embedding, Module, NLLLoss
 import torch.nn.functional as F
@@ -7,6 +8,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from time import time
+import matplotlib.pyplot as plt
 torch.manual_seed(883125)
 
 
@@ -79,7 +81,6 @@ def train_model(resume=True):
         list_models = os.listdir(os.path.join(path[:-1]))
         if len(list_models):
             path += list_models[-1]
-            epoch = int(path.split('_')[1])
             checkpoint = torch.load(path)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -109,5 +110,22 @@ def train_model(resume=True):
     print(losses)  # The loss should decrease every iteration over the training data
 
 
+def plot_loss():
+    os.chdir(r"G:\Download\computer science\datasets\Google Local\\")
+    losses = []
+    for model_name in os.listdir(os.path.join('checkpoints')):
+        checkpoint = torch.load('checkpoints/' + model_name)
+        losses.append(checkpoint['total_loss'])
+    fig, ax = plt.subplots()
+    ax.grid()
+    ax.plot(
+        np.arange(len(losses)) + 1,
+        losses
+    )
+    ax.set(xlabel='epoch', ylabel='loss', title='Loss over epochs')
+    plt.show()
+
+
 if __name__ == '__main__':
     train_model()
+    plot_loss()
