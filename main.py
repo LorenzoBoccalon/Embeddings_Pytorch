@@ -86,11 +86,12 @@ class EmbeddingNet(Module):
         return -1 * (torch.sum(score) + torch.sum(neg_score))
 
 
-def train_model(epochs=10):
+def train_model(epochs=15):
     os.chdir(r"G:\Download\computer science\datasets\Google Local\\")
     # The classification task is a fake task. We're interested in learning the embeddings of the locations.
     # We train the neural net on the whole dataset with the task of predicting the next location given the previous.
-    # The first layer is a Embedding layer, which will learn the new projection of the original data.
+    # The layers are Embedding layers, which will learn the new projection of the original data into two spaces,
+    # target and context respectively. We use negative sampling with a third random index for each couple.
     # The net need be shallow, in order to capture the maximum amount of information in the embeddings.
     # Ultimately, we hope to discover some cluster pattern in the embeddings.
 
@@ -109,17 +110,7 @@ def train_model(epochs=10):
     ).to(device)
     # define optimizer
     optimizer = optim.SparseAdam(model.parameters(), lr=1e-3)
-    losses = pd.DataFrame(columns=['losses'])
-    # resume from last checkpoint
-    # if resume:
-    #     path = 'checkpoints/'
-    #     list_models = os.listdir(os.path.join(path[:-1]))
-    #     if len(list_models):
-    #         path += list_models[-1]
-    #         checkpoint = torch.load(path)
-    #         model.load_state_dict(checkpoint['model_state_dict'])
-    #         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    #         epoch = checkpoint['epoch']
+    losses = []
 
     # TRAINING
     model.train()
@@ -137,7 +128,7 @@ def train_model(epochs=10):
             # print current mini-batch loss
             process_bar.set_description("Loss: %0.8f" % loss.item())
         average_loss = total_loss / len(process_bar)
-        losses.append({'loss': average_loss}, ignore_index=True)
+        losses.append(average_loss)
         # save network
         torch.save({
             'epoch': epoch,
@@ -149,18 +140,18 @@ def train_model(epochs=10):
     weights = model.u_embeddings.weight.detach().clone().cpu().numpy()
     embeddings = pd.DataFrame(weights, columns=[f"dim_{i}" for i in range(embedding_dim)])
     embeddings.to_csv(f'./embeddings/embeddings_time_{round(time())}.csv', index=False)
-    losses.index.rename('index')
-    losses.to_csv(f'./losses/losses_time_{round(time())}.csv')
+    losses = pd.DataFrame({'loss': losses})
+    losses.to_csv(f'./losses/losses_time_{round(time())}.csv', index=False)
 
 
 def plot_loss():
     os.chdir(r"G:\Download\computer science\datasets\Google Local\losses\\")
-    losses_file = os.listdir(os.path.join('checkpoints'))[-1]
+    losses_file = os.listdir()[-1]
     losses = pd.read_csv(losses_file)
     fig, ax = plt.subplots()
     ax.grid()
     ax.plot(
-        losses.index,
+        losses.index + 1,
         losses['loss']
     )
     ax.set(xlabel='epoch', ylabel='loss', title='Loss over epochs')
