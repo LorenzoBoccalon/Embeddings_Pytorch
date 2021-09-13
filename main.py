@@ -22,10 +22,10 @@ class GoogleLocalDataset(Dataset):
         )
         # The query is a cartesian product, the resulting matrix is symmetric.
         # Every location appears at least one time in the target column
-        self.locations_vocab = set(df['source'])                                    # set of all locations
+        self.locations_vocab = set(df['source'])  # set of all locations
         self.vocab_size = len(self.locations_vocab)
-        self.locations_to_ix = {l: i for i, l in enumerate(self.locations_vocab)}   # mapping every location to an index
-        self.ix_to_locations = {i: l for i, l in self.locations_to_ix.items()}      # reverse the dict
+        self.locations_to_ix = {l: i for i, l in enumerate(self.locations_vocab)}  # mapping every location to an index
+        self.ix_to_locations = {i: l for i, l in self.locations_to_ix.items()}  # reverse the dict
         # Substitute the original location values with their index
         df['source'] = df['source'].map(self.locations_to_ix)
         df['target'] = df['target'].map(self.locations_to_ix)
@@ -35,18 +35,27 @@ class GoogleLocalDataset(Dataset):
         probabilities.columns = ['location', 'prob']
         assert len(probabilities) == self.vocab_size
         # for each couple in the dataset sample one negative location, different from context and target
-        # TODO fix negative sampling
-        df['negative'] = 0  # prepare an empty column for negative sampling
-        t0 = time()
-        for index, row in df.iterrows():
-            while True:
-                neg_data = probabilities.sample(n=1, weights='prob')['location'].values
-                if row['source'] == neg_data or row['target'] == neg_data:
-                    continue
-                else:
-                    row['negative'] = neg_data
-                    break
-        print(f"{time()-t0:.2f} s")
+        # pick at random the negative samples. Some will be wrong, fixed later
+        neg_data = probabilities.sample(
+            n=len(df),
+            weights='prob',
+            replace=True,
+            random_state=RANDOM_STATE
+        )['location'].values
+        df['negative'] = neg_data
+        # select the wrong rows
+        eq_mask = (df['source'] == df['negative']) | (df['target'] == df['negative'])
+        cnt = np.sum(eq_mask)  # number of wrong sampling
+        while np.sum(eq_mask) != 0:
+            # while the number of wrong rows is different from zero, resample only the wrong rows
+            df.loc[eq_mask, 'negative'] = probabilities.sample(
+                n=cnt,
+                weights='prob',
+                replace=True,
+            )['location'].values
+            eq_mask = (df['source'] == df['negative']) | (df['target'] == df['negative'])
+            cnt = np.sum(eq_mask)  # number of wrong sampling
+
         assert np.all(df['source'] != df['negative'])  # check if every source is different from its negative sample
         assert np.all(df['target'] != df['negative'])  # check if every target is different from its negative sample
         data = df.values
@@ -103,7 +112,6 @@ def train_model(epochs=15):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # define dataset
     dataset = GoogleLocalDataset(device)
-    return
     # define dataloader
     batch_size = 256
     dataloader = DataLoader(dataset, batch_size=batch_size)
