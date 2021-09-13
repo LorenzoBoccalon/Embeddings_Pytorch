@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 
 RANDOM_STATE = 883125
 torch.manual_seed(RANDOM_STATE)
+os.chdir(r"G:\Download\computer science\datasets\Google Local\\")
 
 
 class GoogleLocalDataset(Dataset):
@@ -70,6 +71,11 @@ class GoogleLocalDataset(Dataset):
         v, u, n = self.data[ixs, 0], self.data[ixs, 1], self.data[ixs, 2]
         return v, u, n
 
+    def save_location_map(self, fp='./maps/location_map.csv'):
+        df = pd.DataFrame.from_dict(data=self.locations_to_ix, orient='index').reset_index()
+        df.columns = ['location', 'index']
+        df.to_csv(fp, index=False)
+
 
 class EmbeddingNet(Module):
     def __init__(self, vocabulary_size, embedding_dim=256):
@@ -100,18 +106,18 @@ class EmbeddingNet(Module):
 
 
 def train_model(epochs=15):
-    os.chdir(r"G:\Download\computer science\datasets\Google Local\\")
-    # The classification task is a fake task. We're interested in learning the embeddings of the locations.
-    # We train the neural net on the whole dataset with the task of predicting the next location given the previous.
-    # The layers are Embedding layers, which will learn the new projection of the original data into two spaces,
-    # target and context respectively. We use negative sampling with a third random index for each couple.
-    # The net need be shallow, in order to capture the maximum amount of information in the embeddings.
-    # Ultimately, we hope to discover some cluster pattern in the embeddings.
+    """The classification task is a fake task. We're interested in learning the embeddings of the locations.
+    We train the neural net on the whole dataset with the task of predicting the next location given the previous.
+    The layers are Embedding layers, which will learn the new projection of the original data into two spaces,
+    target and context respectively. We use negative sampling with a third random index for each couple.
+    The net need be shallow, in order to capture the maximum amount of information in the embeddings.
+    Ultimately, we hope to discover some cluster pattern in the embeddings."""
 
     # check CUDA availability
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # define dataset
     dataset = GoogleLocalDataset(device)
+    dataset.save_location_map()
     # define dataloader
     batch_size = 256
     dataloader = DataLoader(dataset, batch_size=batch_size)
@@ -158,7 +164,7 @@ def train_model(epochs=15):
 
 
 def plot_loss():
-    os.chdir(r"G:\Download\computer science\datasets\Google Local\losses\\")
+    os.chdir('./losses//')
     losses_file = os.listdir()[-1]
     losses = pd.read_csv(losses_file)
     fig, ax = plt.subplots()
@@ -173,4 +179,4 @@ def plot_loss():
 
 if __name__ == '__main__':
     train_model()
-    # plot_loss()
+    plot_loss()
