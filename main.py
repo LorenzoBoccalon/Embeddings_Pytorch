@@ -34,18 +34,24 @@ class GoogleLocalDataset(Dataset):
         probabilities = probabilities.reset_index()
         probabilities.columns = ['location', 'prob']
         assert len(probabilities) == self.vocab_size
-        # for each couple in the dataset sample one negative location
-        # it might be that the negative location appears in the context, more sophisticated implementation needed
-        neg_data = probabilities.sample(
-            n=len(df['source']),
-            replace=True,
-            weights='prob',
-            random_state=RANDOM_STATE
-        )['location']
-        assert len(neg_data) == len(df)
-        data = np.column_stack((df.values, neg_data.values.T))
+        # for each couple in the dataset sample one negative location, different from context and target
+        # TODO fix negative sampling
+        df['negative'] = 0  # prepare an empty column for negative sampling
+        t0 = time()
+        for index, row in df.iterrows():
+            while True:
+                neg_data = probabilities.sample(n=1, weights='prob')['location'].values
+                if row['source'] == neg_data or row['target'] == neg_data:
+                    continue
+                else:
+                    row['negative'] = neg_data
+                    break
+        print(f"{time()-t0:.2f} s")
+        assert np.all(df['source'] != df['negative'])  # check if every source is different from its negative sample
+        assert np.all(df['target'] != df['negative'])  # check if every target is different from its negative sample
+        data = df.values
         # data is a tensor of (v, u, n) tuples where:
-        # u = target , v = context , n = negative sampling
+        # v = context , u = target , n = negative sampling
         self.data = torch.LongTensor(data).to(_device)
 
     def __len__(self):
@@ -97,6 +103,7 @@ def train_model(epochs=15):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # define dataset
     dataset = GoogleLocalDataset(device)
+    return
     # define dataloader
     batch_size = 256
     dataloader = DataLoader(dataset, batch_size=batch_size)
@@ -158,4 +165,4 @@ def plot_loss():
 
 if __name__ == '__main__':
     train_model()
-    plot_loss()
+    # plot_loss()
