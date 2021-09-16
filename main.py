@@ -98,7 +98,7 @@ class EmbeddingNet(Module):
         score = torch.mul(emb_u, emb_v).squeeze()
         score = torch.sum(score, dim=1)
         score = F.logsigmoid(score)
-        # positive score
+        # negative score
         neg_score = torch.mul(emb_u, neg_emb_v).squeeze()
         neg_score = torch.sum(neg_score, dim=1)
         neg_score = F.logsigmoid(-1 * neg_score)
